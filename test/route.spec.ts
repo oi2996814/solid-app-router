@@ -1,4 +1,6 @@
-import { createBranch, createBranches, createRoutes } from "../src/routing";
+import { vi } from "vitest";
+import { createBranch, createBranches, createRoutes } from "../src/routing.js";
+import type { RouteDefinition } from "../src/index.js";
 
 const createRoute = (...args: Parameters<typeof createRoutes>) => createRoutes(...args)[0];
 
@@ -156,6 +158,21 @@ describe("createRoutes should", () => {
         id: "someTHING",
         all: "BaR/sOlId"
       });
+      expect(route.originalPath).toBe("foo/:id/*all");
+    });
+
+    test(`validate path using match filters`, () => {
+      const routeDef: RouteDefinition = {
+        path: "foo/:number/bar/:withHtmlExtension",
+        matchFilters: {
+          number: (v: string) => /^\d+$/.test(v),
+          withHtmlExtension: (v: string) => /\.html$/.test(v)
+        }
+      };
+      const route = createRoute(routeDef);
+      const match = route.matcher("/foo/123/bar/solid.html")!;
+      expect(match).not.toBeNull();
+      expect(match.path).toBe("/foo/123/bar/solid.html");
     });
   });
 
@@ -165,8 +182,10 @@ describe("createRoutes should", () => {
         path: "foo/:id?"
       };
       const routes = createRoutes(routeDef);
-      expect(routes[0].originalPath).toBe("foo");
-      expect(routes[1].originalPath).toBe("foo/:id");
+      expect(routes[0].pattern).toBe("/foo");
+      expect(routes[0].originalPath).toBe("foo/:id?");
+      expect(routes[1].pattern).toBe("/foo/:id");
+      expect(routes[1].originalPath).toBe("foo/:id?");
     });
 
     test(`with a multiple paths`, () => {
@@ -174,10 +193,14 @@ describe("createRoutes should", () => {
         path: ["foo/:id?", "bar/:name?"]
       };
       const routes = createRoutes(routeDef);
-      expect(routes[0].originalPath).toBe("foo");
-      expect(routes[1].originalPath).toBe("foo/:id");
-      expect(routes[2].originalPath).toBe("bar");
-      expect(routes[3].originalPath).toBe("bar/:name");
+      expect(routes[0].pattern).toBe("/foo");
+      expect(routes[0].originalPath).toBe("foo/:id?");
+      expect(routes[1].pattern).toBe("/foo/:id");
+      expect(routes[1].originalPath).toBe("foo/:id?");
+      expect(routes[2].pattern).toBe("/bar");
+      expect(routes[2].originalPath).toBe("bar/:name?");
+      expect(routes[3].pattern).toBe("/bar/:name");
+      expect(routes[3].originalPath).toBe("bar/:name?");
     });
   });
 });
@@ -355,7 +378,7 @@ describe("createBranch should", () => {
             path: "foo/:id/bar/:name"
           })
         ]);
-        const spy = jest.spyOn(branch.routes[0], "matcher");
+        const spy = vi.spyOn(branch.routes[0], "matcher");
         const location = "/foo/123/bar";
         const match = branch.matcher(location);
         expect(match).toBeNull();
@@ -509,5 +532,35 @@ describe("createBranches should", () => {
     expect(scores[1]).toBeGreaterThan(scores[2]);
     expect(scores[2]).toBeGreaterThan(scores[3]);
     expect(scores[3]).toBeGreaterThan(scores[4]);
+  });
+
+  test(`encode path components`, () => {
+    const branches = createBranches({
+      path: "root",
+      children: [
+        {
+          path: "foo/ほげ/ふが/bar"
+        }
+      ]
+    });
+
+    const branchPaths = branches.map(b => b.routes[b.routes.length - 1].pattern);
+
+    expect(branchPaths).toEqual(["/root/foo/%E3%81%BB%E3%81%92/%E3%81%B5%E3%81%8C/bar"]);
+  });
+
+  test(`not encode parameters or named splats`, () => {
+    const branches = createBranches({
+      path: "root",
+      children: [
+        {
+          path: "ほげ/:ふが/*ぴよ"
+        }
+      ]
+    });
+
+    const branchPaths = branches.map(b => b.routes[b.routes.length - 1].pattern);
+
+    expect(branchPaths).toEqual(["/root/%E3%81%BB%E3%81%92/:ふが/*ぴよ"]);
   });
 });
