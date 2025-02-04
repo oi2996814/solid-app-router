@@ -1,14 +1,17 @@
-import { createRoot, createSignal } from "solid-js";
-import { createRouterContext } from "../src/routing";
-import type { LocationChange } from "../src/types";
-import { createAsyncRoot, createCounter, waitFor } from "./helpers";
+import { createComputed, createRoot, createSignal } from "solid-js";
+import { createRouterContext } from "../src/routing.js";
+import type { LocationChange } from "../src/types.js";
+import { createAsyncRoot, createCounter, waitFor } from "./helpers.js";
+
+const fakeBranches = () => [];
+const fakeContext = () => ({});
 
 describe("Router should", () => {
   describe("have member `base` which should", () => {
     test(`have a default path when base path is not defined`, () => {
       createRoot(() => {
         const signal = createSignal<LocationChange>({ value: "" });
-        const { base } = createRouterContext(signal, undefined);
+        const { base } = createRouterContext({ signal }, fakeBranches);
         expect(base.path()).toBe("/");
       });
     });
@@ -16,7 +19,9 @@ describe("Router should", () => {
     test(`have a normalized version of the base path when defined`, () => {
       createRoot(() => {
         const signal = createSignal<LocationChange>({ value: "" });
-        const { base } = createRouterContext(signal, "base");
+        const { base } = createRouterContext({ signal }, fakeBranches, fakeContext, {
+          base: "base"
+        });
         expect(base.path()).toBe("/base");
       });
     });
@@ -24,7 +29,9 @@ describe("Router should", () => {
     test(`throw when the base path is invalid`, () => {
       createRoot(() => {
         const signal = createSignal<LocationChange>({ value: "" });
-        expect(() => createRouterContext(signal, "http://example.com")).toThrow();
+        expect(() =>
+          createRouterContext({ signal }, fakeBranches, fakeContext, { base: "http://example.com" })
+        ).toThrow();
       });
     });
   });
@@ -35,7 +42,7 @@ describe("Router should", () => {
         const signal = createSignal<LocationChange>({
           value: "/foo/bar?hello=world"
         });
-        const { location } = createRouterContext(signal);
+        const { location } = createRouterContext({ signal }, fakeBranches);
         expect(location.pathname).toBe("/foo/bar");
         expect(location.search).toBe("?hello=world");
       });
@@ -48,7 +55,7 @@ describe("Router should", () => {
           const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world"
           });
-          const { location } = createRouterContext(signal);
+          const { location } = createRouterContext({ signal }, fakeBranches);
           expect(location.pathname).toBe("/foo/bar");
           signal[1]({ value: expected + "?hello=world" });
           waitFor(() => signal[0]().value === expected + "?hello=world").then(() => {
@@ -62,7 +69,7 @@ describe("Router should", () => {
           const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world"
           });
-          const { location } = createRouterContext(signal);
+          const { location } = createRouterContext({ signal }, fakeBranches);
           const count = createCounter(() => location.pathname);
           expect(location.pathname).toBe("/foo/bar");
           signal[1]({ value: "/foo/bar?fizz=buzz" });
@@ -75,7 +82,7 @@ describe("Router should", () => {
           const signal = createSignal<LocationChange>({
             value: "/foo bar+baz"
           });
-          const { location } = createRouterContext(signal);
+          const { location } = createRouterContext({ signal }, fakeBranches);
           expect(location.pathname).toBe("/foo%20bar+baz");
         }));
     }); // end of "contain property 'pathname'"
@@ -87,7 +94,7 @@ describe("Router should", () => {
           const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world"
           });
-          const { location } = createRouterContext(signal);
+          const { location } = createRouterContext({ signal }, fakeBranches);
 
           expect(location.search).toBe("?hello=world");
           signal[1]({ value: "/foo/baz" + expected });
@@ -103,7 +110,7 @@ describe("Router should", () => {
           const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world"
           });
-          const { location } = createRouterContext(signal);
+          const { location } = createRouterContext({ signal }, fakeBranches);
           const count = createCounter(() => location.search);
 
           expect(location.search).toBe("?hello=world");
@@ -117,7 +124,7 @@ describe("Router should", () => {
           const signal = createSignal<LocationChange>({
             value: "/foo?hello+world=bar+baz"
           });
-          const { location } = createRouterContext(signal);
+          const { location } = createRouterContext({ signal }, fakeBranches);
           expect(location.search).toBe("?hello+world=bar+baz");
         }));
     }); //end of "contain property 'search'"
@@ -128,7 +135,7 @@ describe("Router should", () => {
           const signal = createSignal<LocationChange>({
             value: "/foo#bar baz"
           });
-          const { location } = createRouterContext(signal);
+          const { location } = createRouterContext({ signal }, fakeBranches);
           expect(location.hash).toBe("#bar%20baz");
         }));
     }); // end of "contain property 'hash'"
@@ -139,7 +146,7 @@ describe("Router should", () => {
           const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world&fizz=buzz"
           });
-          const { location } = createRouterContext(signal);
+          const { location } = createRouterContext({ signal }, fakeBranches);
           expect(location.query.hello).toEqual("world");
           expect(location.query.fizz).toEqual("buzz");
         });
@@ -150,7 +157,7 @@ describe("Router should", () => {
           const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world"
           });
-          const { location } = createRouterContext(signal);
+          const { location } = createRouterContext({ signal }, fakeBranches);
 
           expect(location.query.hello).toEqual("world");
           signal[1]({ value: "/foo/bar?hello=world&fizz=buzz" });
@@ -166,7 +173,7 @@ describe("Router should", () => {
           const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world"
           });
-          const { location } = createRouterContext(signal);
+          const { location } = createRouterContext({ signal }, fakeBranches);
           const count = createCounter(() => location.query.hello);
 
           expect(location.query.hello).toEqual("world");
@@ -186,7 +193,7 @@ describe("Router should", () => {
           const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world"
           });
-          const { location } = createRouterContext(signal);
+          const { location } = createRouterContext({ signal }, fakeBranches);
           const count = createCounter(() => location.query.hello);
 
           expect(location.query.hello).toEqual("world");
@@ -208,7 +215,7 @@ describe("Router should", () => {
         const signal = createSignal<LocationChange>({
           value: "/"
         });
-        const { location, navigatorFactory } = createRouterContext(signal);
+        const { location, navigatorFactory } = createRouterContext({ signal }, fakeBranches);
         const navigate = navigatorFactory();
 
         expect(location.pathname).toBe("/");
@@ -225,7 +232,7 @@ describe("Router should", () => {
         const signal = createSignal<LocationChange>({
           value: "/foo/bar"
         });
-        const { location, navigatorFactory } = createRouterContext(signal);
+        const { location, navigatorFactory } = createRouterContext({ signal }, fakeBranches);
         const navigate = navigatorFactory();
         const count = createCounter(() => location.pathname);
 
@@ -243,7 +250,7 @@ describe("Router should", () => {
         const signal = createSignal<LocationChange>({
           value: "/"
         });
-        const { navigatorFactory } = createRouterContext(signal);
+        const { navigatorFactory } = createRouterContext({ signal }, fakeBranches);
         const navigate = navigatorFactory();
         expect(signal[0]().value).toBe("/");
         navigate("/foo/bar");
@@ -260,7 +267,7 @@ describe("Router should", () => {
         const state = { foo: "bar" };
         const signal = createSignal<LocationChange>({ value: "/" });
 
-        const { location, navigatorFactory } = createRouterContext(signal);
+        const { location, navigatorFactory } = createRouterContext({ signal }, fakeBranches);
         const navigate = navigatorFactory();
 
         expect(location.state).toBeUndefined();
@@ -278,7 +285,7 @@ describe("Router should", () => {
         const state = { foo: "bar" };
         const signal = createSignal<LocationChange>({ value: "/" });
 
-        const { location, navigatorFactory } = createRouterContext(signal);
+        const { location, navigatorFactory } = createRouterContext({ signal }, fakeBranches);
         const navigate = navigatorFactory();
 
         expect(location.state).toBeUndefined();
@@ -296,7 +303,7 @@ describe("Router should", () => {
         const signal = createSignal<LocationChange>({
           value: "/"
         });
-        const { navigatorFactory } = createRouterContext(signal);
+        const { navigatorFactory } = createRouterContext({ signal }, fakeBranches);
         const navigate = navigatorFactory();
 
         expect(signal[0]()).toEqual({ value: "/" });
@@ -318,7 +325,7 @@ describe("Router should", () => {
         const signal = createSignal<LocationChange>({
           value: "/"
         });
-        const { navigatorFactory } = createRouterContext(signal);
+        const { navigatorFactory } = createRouterContext({ signal }, fakeBranches);
         const navigate = navigatorFactory();
         function pushAlot() {
           for (let i = 0; i < 101; i++) {
@@ -331,8 +338,43 @@ describe("Router should", () => {
   }); // end of "have member `navigate`"
 
   describe("have member `isRouting` which should", () => {
-    test.skip("be true when the push or replace causes transition", () => {
-      throw new Error("Test not implemented");
-    });
+    test("be true when the push or replace causes transition", () =>
+      createAsyncRoot(resolve => {
+        const signal = createSignal<LocationChange>({
+          value: "/"
+        });
+        const { navigatorFactory, isRouting } = createRouterContext({ signal }, fakeBranches);
+        const navigate = navigatorFactory();
+
+        expect(isRouting()).toBe(false);
+        navigate("/target");
+        expect(isRouting()).toBe(true);
+        waitFor(() => !isRouting()).then(resolve);
+      }));
+
+    test("turn false, only after location has changed", () =>
+      createAsyncRoot(resolve => {
+        const signal = createSignal<LocationChange>({
+          value: "/"
+        });
+        const { navigatorFactory, isRouting } = createRouterContext({ signal }, fakeBranches);
+        const navigate = navigatorFactory();
+
+        navigate("/target");
+
+        //  capture location immediately after `isRouting` turns false
+        let postRoutingValue: string | undefined;
+        createComputed(() => {
+          if (!isRouting() && !postRoutingValue) {
+            postRoutingValue = signal[0]().value;
+          }
+        });
+
+        return waitFor(() => !isRouting())
+          .then(() => {
+            expect(postRoutingValue).toBe("/target");
+          })
+          .finally(resolve);
+      }));
   });
 });

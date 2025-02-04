@@ -3,7 +3,9 @@ import {
   joinPaths,
   resolvePath,
   createMemoObject,
-  expandOptionals
+  expandOptionals,
+  mergeSearchString,
+  extractSearchParams
 } from "../src/utils";
 
 describe("resolvePath should", () => {
@@ -86,6 +88,85 @@ describe("resolvePath should", () => {
   });
 });
 
+describe("mergeSearchString should", () => {
+  test("return empty string when current and new params are empty", () => {
+    const expected = "";
+    const actual = mergeSearchString("", {});
+    expect(actual).toBe(expected);
+  });
+
+  test("return new params when current params are empty", () => {
+    const expected = "?foo=bar";
+    const actual = mergeSearchString("", { foo: "bar" });
+    expect(actual).toBe(expected);
+  });
+
+  test("return current params when new params are empty", () => {
+    const expected = "?foo=bar";
+    const actual = mergeSearchString("?foo=bar", {});
+    expect(actual).toBe(expected);
+  });
+
+  test("return merged params when current and new params are not empty", () => {
+    const expected = "?foo=bar&baz=qux";
+    const actual = mergeSearchString("?foo=bar", { baz: "qux" });
+    expect(actual).toBe(expected);
+  });
+
+  test("return ampersand-separated params when new params is an array", () => {
+    const expected = "?foo=bar&foo=baz";
+    const actual = mergeSearchString("", { foo: ["bar", "baz"] });
+    expect(actual).toBe(expected);
+  });
+
+  test("return ampersand-separated params when current params is an array of numbers", () => {
+    const expected = "?foo=1&foo=2";
+    const actual = mergeSearchString("", { foo: [1, 2] });
+    expect(actual).toBe(expected);
+  });
+
+  test("return empty string when new is an empty array", () => {
+    const expected = "";
+    const actual = mergeSearchString("", { foo: [] });
+    expect(actual).toBe(expected);
+  });
+
+  test("return empty string when current is present and new is an empty array", () => {
+    const expected = "";
+    const actual = mergeSearchString("?foo=2&foo=3", { foo: [] });
+    expect(actual).toBe(expected);
+  });
+
+  test("return array containing only new value when current is present and new is an array with one value", () => {
+    const expected = "?foo=1&foo=2";
+    const actual = mergeSearchString("?foo=3&foo=4", { foo: [1, 2] });
+    expect(actual).toBe(expected);
+  });
+});
+
+describe("extractSearchParams should", () => {
+  test("return empty object when URL has no search params", () => {
+    const url = new URL("http://localhost/");
+    const expected = {};
+    const actual = extractSearchParams(url);
+    expect(actual).toEqual(expected);
+  });
+
+  test("return search params as object", () => {
+    const url = new URL("http://localhost/?foo=bar&baz=qux");
+    const expected = { foo: "bar", baz: "qux" };
+    const actual = extractSearchParams(url);
+    expect(actual).toEqual(expected);
+  });
+
+  test("return search params as object with array values", () => {
+    const url = new URL("http://localhost/?foo=bar&foo=baz");
+    const expected = { foo: ["bar", "baz"] };
+    const actual = extractSearchParams(url);
+    expect(actual).toEqual(expected);
+  });
+});
+
 describe("createMatcher should", () => {
   test("return empty object when location matches simple path", () => {
     const expected = { path: "/foo/bar", params: {} };
@@ -145,6 +226,74 @@ describe("createMatcher should", () => {
     expect(match!.path).toBe(expected.path);
     expect(match!.params).toEqual(expected.params);
   });
+
+  test("apply matchFilter containing a regular expression", () => {
+    const matcher = createMatcher("/products/:id", undefined, { id: /^\d+$/ });
+
+    const expected = { path: "/products/5", params: { id: "5" } };
+    const match = matcher("products/5");
+    expect(match).not.toBe(null);
+    expect(match!.path).toBe(expected.path);
+    expect(match!.params).toEqual(expected.params);
+
+    const failure = matcher("produts/fifth");
+    expect(failure).toBe(null);
+  });
+
+  test("apply matchFilter containing an array of matches", () => {
+    const matcher = createMatcher("/pets/:pet", undefined, { pet: ["cat", "dog"] });
+    const expected = { path: "/pets/dog", params: { pet: "dog" } };
+    const match = matcher("pets/dog");
+    expect(match).not.toBe(null);
+    expect(match!.path).toBe(expected.path);
+    expect(match!.params).toEqual(expected.params);
+
+    const failure = matcher("pets/shark");
+    expect(failure).toBe(null);
+  });
+
+  test("apply matchFilter containing a predicate function", () => {
+    const matcher = createMatcher("/:parent/:birthYear", undefined, {
+      parent: v => ["dad", "mum"].includes(v),
+      birthYear: v => /^\d+$/.test(v)
+    });
+
+    const expected1 = { path: "/dad/1943", params: { parent: "dad", birthYear: "1943" } };
+    const match1 = matcher("/dad/1943");
+    expect(match1).not.toBe(null);
+    expect(match1!.path).toBe(expected1.path);
+    expect(match1!.params).toEqual(expected1.params);
+
+    const expected2 = { path: "/mum/1954", params: { parent: "mum", birthYear: "1954" } };
+    const match2 = matcher("/mum/1954");
+    expect(match2).not.toBe(null);
+    expect(match2!.path).toBe(expected2.path);
+    expect(match2!.params).toEqual(expected2.params);
+
+    const match3 = matcher("/ant/twothousandtwentythree");
+    expect(match3).toBe(null);
+
+    const match4 = matcher("/dad/mum");
+    expect(match4).toBe(null);
+
+    const match5 = matcher("/123/mum");
+    expect(match5).toBe(null);
+  });
+
+  test("apply matchFilter to a wildcard parameter", () => {
+    const matcher = createMatcher("/tree/*leaves", undefined, {
+      leaves: /^((left|right)\/)*\d+$/
+    });
+
+    const expected = { path: "/tree", params: { leaves: "left/right/left/left/53" } };
+    const match = matcher("/tree/left/right/left/left/53");
+    expect(match).not.toBe(null);
+    expect(match!.path).toBe(expected.path);
+    expect(match!.params).toEqual(expected.params);
+
+    const failure = matcher("tree/left/up/right/12");
+    expect(failure).toBe(null);
+  });
 });
 
 describe("joinPaths should", () => {
@@ -173,7 +322,7 @@ describe("joinPaths should", () => {
   test.each([
     ["/foo", "", "/foo"],
     ["/foo/", "/", "/foo"],
-    ["/foo/", "bar/", "/foo/bar"]
+    ["/foo/", "bar/", "/foo/bar/"]
   ])(`strip trailing '/' (case '%s' and '%s' as '%s')`, (from, to, expected) => {
     const joined = joinPaths(from, to);
     expect(joined).toBe(expected);
