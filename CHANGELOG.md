@@ -1,5 +1,11 @@
 # @solidjs/router
 
+## 0.15.4
+
+### Patch Changes
+
+- ac97470: added `SearchParams` to the exported types
+
 ## 0.15.3
 
 ### Patch Changes
